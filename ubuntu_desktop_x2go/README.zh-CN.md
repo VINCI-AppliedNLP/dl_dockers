@@ -22,12 +22,12 @@ docker build -t gnome-x2go:latest ./ubuntu_desktop_x2go
 下面示例在容器内运行 systemd。下面的选项通常是必需的；它们会放宽隔离，可能不适合所有环境。
 
 ```bash
-docker run --privileged -d \
-  --tmpfs /run --tmpfs /run/lock \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
-  -p 2222:22 \
-  -e VNC_USER=myuser -e VNC_PASSWORD='yourpass' \
-  --name gnome-x2go gnome-x2go:latest
+        docker run --privileged -d \
+        --tmpfs /run --tmpfs /run/lock \
+        -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+        -p 2222:22 \
+        -e VNC_USER=myuser -e VNC_PASSWORD='yourpass' \
+        --name gnome-x2go gnome-x2go:latest
 ```
 
 启动后说明

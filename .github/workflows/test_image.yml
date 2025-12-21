@@ -1,4 +1,4 @@
-name: build_push_image
+name: build_test_image
 run-name: B&D ${{ github.event.inputs.hub_username }}/${{ github.event.inputs.build_folder }}:${{ github.event.inputs.tags }}  
 on:
   workflow_dispatch:

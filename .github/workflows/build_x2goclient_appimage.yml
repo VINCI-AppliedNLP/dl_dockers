@@ -1,0 +1,169 @@
+name: build_x2goclient_appimage
+run-name: Build X2GoClient AppImage ${{ github.event.inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag for the release'  
+        type: string   
+        required: false
+        default: 'latest'
+      recipe_url:
+        description: 'URL to the pkg2appimage recipe (default: X2GoClient from AppImageCommunity)'  
+        type: string   
+        required: false
+        default: 'https://raw.githubusercontent.com/AppImageCommunity/pkg2appimage/master/recipes/X2GoClient.yml'
+
+jobs:
+  build_appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine release name
+        id: tag
+        shell: bash
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+          echo "name=X2GoClient-AppImage-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+          echo "X2GoClient-AppImage-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}"
+
+      - name: Install pkg2appimage dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            wget \
+            fuse \
+            libfuse2 \
+            git \
+            python3 \
+            python3-pip \
+            appstream
+
+      - name: Clone pkg2appimage repository
+        run: |
+          mkdir -p build
+          cd build
+          git clone https://github.com/AppImageCommunity/pkg2appimage.git
+          cd pkg2appimage
+          git log --oneline -1
+
+      - name: Build AppImage
+        run: |
+          cd build/pkg2appimage
+          
+          # Make the main script executable
+          chmod +x ./pkg2appimage
+          
+          # Download the recipe if custom URL is provided
+          RECIPE="${{ github.event.inputs.recipe_url }}"
+          
+          # Extract recipe name from URL
+          RECIPE_NAME=$(basename "$RECIPE" .yml)
+          
+          echo "Building X2GoClient AppImage from recipe: $RECIPE"
+          
+          # Create temporary directory for build
+          mkdir -p /tmp/appimage_build
+          cd /tmp/appimage_build
+          
+          # Download the recipe
+          wget "$RECIPE" -O recipe.yml
+          
+          # Run pkg2appimage with the recipe
+          bash "${{ github.workspace }}/build/pkg2appimage/pkg2appimage" recipe.yml || true
+          
+          # List generated AppImages
+          ls -la *.AppImage* 2>/dev/null || echo "No AppImage found in current directory"
+          
+          # Find and copy AppImage to artifacts
+          mkdir -p ${{ github.workspace }}/artifacts
+          find . -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \;
+          
+          # Also check in standard locations
+          if [ -d "./appdir" ]; then
+            find ./appdir -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \; 2>/dev/null || true
+          fi
+
+      - name: List generated artifacts
+        run: |
+          echo "Artifacts generated:"
+          ls -lh artifacts/ || echo "No artifacts found"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          release_name: ${{ steps.tag.outputs.name }}
+          draft: false
+          prerelease: false
+
+      - name: Upload AppImage to Release
+        id: upload_release
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |          
+            const path = require('path');
+            const fs = require('fs');
+            
+            // Retrieve necessary information
+            const release_id = `${{ steps.create_release.outputs.id }}`;
+            const release_url = `${{ steps.create_release.outputs.html_url }}`;
+  
+            let releaseDescription = '# X2GoClient AppImage Release\n\n';
+            releaseDescription += `Built from: ${{ github.event.inputs.recipe_url }}\n\n`;
+            releaseDescription += `**Build Information:**\n`;
+            releaseDescription += `- Version: ${{ github.event.inputs.version }}\n`;
+            releaseDescription += `- Build Number: ${{ steps.tag.outputs.name }}\n`;
+            releaseDescription += `- Date: ${new Date().toISOString()}\n\n`;
+            releaseDescription += `**Installation:**\n`;
+            releaseDescription += `1. Download the X2GoClient AppImage file\n`;
+            releaseDescription += `2. Make it executable: \`chmod +x X2GoClient*.AppImage\`\n`;
+            releaseDescription += `3. Run it: \`./X2GoClient*.AppImage\`\n\n`;
+            releaseDescription += `**Recipe:**\n`;
+            releaseDescription += `This AppImage was built using the [X2GoClient recipe](https://github.com/AppImageCommunity/pkg2appimage/blob/master/recipes/X2GoClient.yml) from the AppImageCommunity project.\n`;
+  
+            // Update the release with the description
+            await github.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id,
+                body: releaseDescription,
+            });
+          
+            // Upload all AppImage files found in artifacts directory
+            const artifactDir = './artifacts';
+            
+            if (!fs.existsSync(artifactDir)) {
+              console.warn('No artifacts directory found');
+              return;
+            }
+            
+            const files = fs.readdirSync(artifactDir);
+            
+            if (files.length === 0) {
+              console.warn('No files found in artifacts directory');
+              return;
+            }
+            
+            for (let file of files) {
+                console.log('Uploading artifact:', file);
+                try {
+                  await github.repos.uploadReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    release_id: release_id,
+                    name: file,
+                    data: await fs.readFileSync(`${artifactDir}/${file}`)
+                  });
+                  console.log('Successfully uploaded:', file);
+                } catch (error) {
+                  console.error(`Failed to upload ${file}:`, error.message);
+                }
+            }
