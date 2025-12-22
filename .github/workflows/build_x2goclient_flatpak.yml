@@ -1,6 +1,10 @@
 name: build_x2goclient_flatpak
 run-name: Build X2GoClient Flatpak ${{ github.event.inputs.version }}
 on:
+  push:
+    paths:
+      - '.github/workflows/build_x2goclient_flatpak.yml'
+      - '.github/recipes/net.x2go.client.yml'
   workflow_dispatch:
     inputs:
       version:
@@ -59,7 +63,6 @@ jobs:
           flatpak-builder \
             --repo=repo \
             --disable-rofiles-fuse \
-            --disable-sandbox \
             --install-deps-from=flathub \
             --force-clean \
             --default-branch=master \
