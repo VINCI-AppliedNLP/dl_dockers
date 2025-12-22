@@ -27,10 +27,8 @@ jobs:
         id: tag
         shell: bash
         run: |
-          BUILD_NUMBER="$(git rev-list --count HEAD)"
-          SHORT_HASH="$(git rev-parse --short=7 HEAD)"
           echo "name=X2GoClient-Flatpak-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
-          echo "X2GoClient-Flatpak-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}"
+          
 
       - name: Download Flatpak manifest
         run: |
