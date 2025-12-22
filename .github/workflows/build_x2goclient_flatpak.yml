@@ -1,5 +1,5 @@
 name: build_x2goclient_flatpak
-run-name: Build X2GoClient Flatpak ${{ github.event.inputs.version }}
+run-name: Build X2GoClient Flatpak ${{ github.event.inputs.version || 'latest' }}
 on:
   push:
     paths:
@@ -31,12 +31,12 @@ jobs:
         id: tag
         shell: bash
         run: |
-          echo "name=X2GoClient-Flatpak-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
-          
+          VERSION="${{ github.event.inputs.version || 'latest' }}"
+          echo "name=X2GoClient-Flatpak-${VERSION}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
 
       - name: Download Flatpak manifest
         run: |
-          MANIFEST_PATH="${{ github.event.inputs.manifest_url }}"
+          MANIFEST_PATH="${{ github.event.inputs.manifest_url || '.github/recipes/net.x2go.client.yml' }}"
           echo "Using Flatpak manifest from: $MANIFEST_PATH"
           
           # Check if it's a URL or local file
@@ -58,24 +58,12 @@ jobs:
           ls -lh flatpak-build/manifest.yml
 
       - name: Build Flatpak
-        run: |
-          mkdir -p repo build
-          flatpak-builder \
-            --repo=repo \
-            --disable-rofiles-fuse \
-            --install-deps-from=flathub \
-            --force-clean \
-            --default-branch=master \
-            --arch=x86_64 \
-            --ccache \
-            build \
-            flatpak-build/manifest.yml
-          
-          # Create the bundle
-          flatpak build-bundle \
-            repo \
-            X2GoClient-${{ github.event.inputs.version }}.flatpak \
-            ${{ env.APP_ID }}
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: X2GoClient-${{ github.event.inputs.version || 'latest' }}.flatpak
+          manifest-path: flatpak-build/manifest.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: true
 
       - name: Create Release
         id: create_release
@@ -87,6 +75,39 @@ jobs:
           release_name: ${{ steps.tag.outputs.name }}
           draft: false
           prerelease: false
+
+      - name: Find Flatpak bundle
+        id: find_bundle
+        run: |
+          VERSION="${{ github.event.inputs.version || 'latest' }}"
+          BUNDLE_NAME="X2GoClient-${VERSION}.flatpak"
+          
+          # Search for the bundle in common locations
+          echo "Searching for ${BUNDLE_NAME}..."
+          
+          # Check current directory
+          if [ -f "${BUNDLE_NAME}" ]; then
+            echo "bundle_path=${PWD}/${BUNDLE_NAME}" >> $GITHUB_OUTPUT
+            echo "Found at: ${PWD}/${BUNDLE_NAME}"
+          # Check workspace root
+          elif [ -f "${{ github.workspace }}/${BUNDLE_NAME}" ]; then
+            echo "bundle_path=${{ github.workspace }}/${BUNDLE_NAME}" >> $GITHUB_OUTPUT
+            echo "Found at: ${{ github.workspace }}/${BUNDLE_NAME}"
+          else
+            # Find it anywhere
+            FOUND=$(find ${{ github.workspace }} -name "${BUNDLE_NAME}" -type f 2>/dev/null | head -1)
+            if [ -n "$FOUND" ]; then
+              echo "bundle_path=${FOUND}" >> $GITHUB_OUTPUT
+              echo "Found at: ${FOUND}"
+            else
+              echo "Bundle not found!"
+              echo "Listing workspace contents:"
+              ls -la ${{ github.workspace }}
+              find ${{ github.workspace }} -name "*.flatpak" -type f 2>/dev/null
+            fi
+          fi
+          
+          echo "bundle_name=${BUNDLE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Upload Flatpak to Release
         id: upload_release
@@ -102,9 +123,9 @@ jobs:
             const release_url = `${{ steps.create_release.outputs.html_url }}`;
   
             let releaseDescription = '# X2GoClient Flatpak Release\n\n';
-            releaseDescription += `Built from: ${{ github.event.inputs.manifest_url }}\n\n`;
+            releaseDescription += `Built from: ${{ github.event.inputs.manifest_url || '.github/recipes/net.x2go.client.yml' }}\n\n`;
             releaseDescription += `**Build Information:**\n`;
-            releaseDescription += `- Version: ${{ github.event.inputs.version }}\n`;
+            releaseDescription += `- Version: ${{ github.event.inputs.version || 'latest' }}\n`;
             releaseDescription += `- Build Number: ${{ steps.tag.outputs.name }}\n`;
             releaseDescription += `- Date: ${new Date().toISOString()}\n\n`;
             releaseDescription += `**Installation:**\n`;
@@ -116,9 +137,10 @@ jobs:
             releaseDescription += `\`\`\`\n\n`;
             releaseDescription += `**Prerequisites:**\n`;
             releaseDescription += `- Flatpak must be installed on your system\n`;
-            releaseDescription += `- For most distributions: \`sudo apt install flatpak\` (Debian/Ubuntu) or equivalent\n\n`;
+            releaseDescription += `- OpenSSH must be installed on your system (the Flatpak uses host SSH)\n`;
+            releaseDescription += `- For most distributions: \`sudo apt install flatpak openssh-client\` (Debian/Ubuntu) or equivalent\n\n`;
             releaseDescription += `**Manifest:**\n`;
-            releaseDescription += `This Flatpak was built using the X2GoClient manifest from the [Flathub project](https://github.com/flathub/net.x2go.client).\n`;
+            releaseDescription += `This Flatpak was built using the X2GoClient manifest.\n`;
   
             // Update the release with the description
             await github.repos.updateRelease({
@@ -129,10 +151,12 @@ jobs:
             });
           
             // Upload the Flatpak bundle file
-            const bundlePath = '${{ github.workspace }}/X2GoClient-${{ github.event.inputs.version }}.flatpak';
+            const bundlePath = '${{ steps.find_bundle.outputs.bundle_path }}';
+            const bundleName = '${{ steps.find_bundle.outputs.bundle_name }}';
             
-            if (!fs.existsSync(bundlePath)) {
+            if (!bundlePath || !fs.existsSync(bundlePath)) {
               console.warn('Flatpak bundle not found at:', bundlePath);
+              console.log('Note: The bundle is still available as a GitHub artifact.');
               return;
             }
             
@@ -142,8 +166,8 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: release_id,
-                name: 'X2GoClient-${{ github.event.inputs.version }}.flatpak',
-                data: await fs.readFileSync(bundlePath)
+                name: bundleName,
+                data: fs.readFileSync(bundlePath)
               });
               console.log('Successfully uploaded Flatpak bundle');
             } catch (error) {

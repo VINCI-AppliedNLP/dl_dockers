@@ -15,19 +15,35 @@ finish-args:
   - --filesystem=home
   - --filesystem=/tmp
   - --filesystem=xdg-run/gnupg:ro
+  # Allow access to host SSH
+  - --filesystem=/usr/bin/ssh:ro
+  - --filesystem=/usr/bin/scp:ro
+  - --filesystem=/usr/bin/ssh-keygen:ro
+  - --filesystem=~/.ssh:ro
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.freedesktop.impl.portal.Notification
+  # Allow running host commands (for ssh)
+  - --talk-name=org.freedesktop.Flatpak
 
 modules:
+  # Use shared-modules for openssh instead of building from source
+  # Or use a simple buildsystem that doesn't require sandbox
   - name: openssh
-    config-opts:
-      - --prefix=/app
-      - --with-default-path=/app/bin:/usr/bin
-    sources:
-      - type: archive
-        url: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-10.0p1.tar.gz
-        sha256: 021a2e709a0edf4250b1256bd5a9e500411a90dddabea830ed59cef90eb9d85c
+    buildsystem: simple
+    build-commands:
+      # Create symlinks to host ssh binaries
+      - mkdir -p /app/bin
+      - echo '#!/bin/sh' > /app/bin/ssh
+      - echo 'exec /usr/bin/ssh "$@"' >> /app/bin/ssh
+      - chmod +x /app/bin/ssh
+      - echo '#!/bin/sh' > /app/bin/scp
+      - echo 'exec /usr/bin/scp "$@"' >> /app/bin/scp
+      - chmod +x /app/bin/scp
+      - echo '#!/bin/sh' > /app/bin/ssh-keygen
+      - echo 'exec /usr/bin/ssh-keygen "$@"' >> /app/bin/ssh-keygen
+      - chmod +x /app/bin/ssh-keygen
+    sources: []
 
   - name: x2goclient
     buildsystem: qmake
