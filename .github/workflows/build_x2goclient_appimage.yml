@@ -43,7 +43,8 @@ jobs:
             
       - name: Clone and build x2goclient
         run: |
-          git clone https://github.com/xypron/x2goclient.git
+          git clone git://code.x2go.org/x2goclient.git
+
           cd x2goclient
           qmake x2goclient.pro CONFIG+=release PREFIX=/usr
           make -j$(nproc)
