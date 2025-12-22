@@ -84,8 +84,10 @@ jobs:
           echo "Running pkg2appimage to build X2GoClient AppImage..."
           bash squashfs-root/AppRun-host X2GoClient.yml || true
           
-          # Find and copy AppImage to artifacts
-          find . -maxdepth 1 -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \;
+          # Copy the built AppImage from out/ directory to artifacts
+          if [ -d "out" ]; then
+            find out -maxdepth 1 -name "*.AppImage" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \;
+          fi
           
           echo "Build complete. Generated files:"
           ls -lh ${{ github.workspace }}/artifacts/
@@ -151,6 +153,11 @@ jobs:
             }
             
             for (let file of files) {
+                // Skip pkg2appimage.AppImage
+                if (file === 'pkg2appimage.AppImage') {
+                  console.log('Skipping:', file);
+                  continue;
+                }
                 console.log('Uploading artifact:', file);
                 try {
                   await github.repos.uploadReleaseAsset({
