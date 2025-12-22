@@ -1,6 +1,9 @@
 name: build_x2goclient_appimage
 run-name: Build X2GoClient AppImage ${{ github.event.inputs.version }}
 on:
+  push:
+    paths:
+      - '.github/workflows/build_x2goclient_appimage.yml'
   workflow_dispatch:
     inputs:
       version:
