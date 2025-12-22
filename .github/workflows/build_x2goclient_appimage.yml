@@ -67,22 +67,9 @@ jobs:
           
           wget -c "$RECIPE" -O X2GoClient.yml
           
-          # Extract the AppImage to avoid bundled GLib/libselinux conflicts
-          echo "Extracting pkg2appimage AppImage..."
-          ./pkg2appimage.AppImage --appimage-extract
-          
-          # Create a host-safe AppRun that doesn't export bundled libraries
-          # This avoids the glib-compile-schemas symbol lookup errors
-          echo "Creating host-safe AppRun wrapper..."
-          sed -e 's/^export PATH=.*/# export PATH suppressed to use host binaries/' \
-              -e 's/^export LD_LIBRARY_PATH=.*/# export LD_LIBRARY_PATH suppressed to avoid bundled libs/' \
-              -e 's/^export XDG_DATA_DIRS=.*/# export XDG_DATA_DIRS suppressed/' \
-              squashfs-root/AppRun > squashfs-root/AppRun-host
-          chmod +x squashfs-root/AppRun-host
-          
-          # Run pkg2appimage with the recipe using the host-safe AppRun
+          # Run pkg2appimage directly with the recipe
           echo "Running pkg2appimage to build X2GoClient AppImage..."
-          bash squashfs-root/AppRun-host X2GoClient.yml || true
+          ./pkg2appimage.AppImage X2GoClient.yml || true
           
           # Copy the built AppImage from out/ directory to artifacts
           if [ -d "out" ]; then
