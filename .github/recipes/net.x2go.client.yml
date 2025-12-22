@@ -1,9 +1,7 @@
 app-id: net.x2go.client
-runtime: org.freedesktop.Platform
-runtime-version: '24.08'
-sdk: org.freedesktop.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.rust-stable
+runtime: org.kde.Platform
+runtime-version: '6.8'
+sdk: org.kde.Sdk
 command: x2goclient
 
 finish-args:
@@ -31,6 +29,11 @@ modules:
   # Or use a simple buildsystem that doesn't require sandbox
   - name: openssh
     buildsystem: simple
+    build-options:
+      # Disable sandbox for this module - required for GitHub Actions
+      # which doesn't have unprivileged user namespaces enabled
+      build-args:
+        - --disable-rofiles-fuse
     build-commands:
       # Create symlinks to host ssh binaries
       - mkdir -p /app/bin
