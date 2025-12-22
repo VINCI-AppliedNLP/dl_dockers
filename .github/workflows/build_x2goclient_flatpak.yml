@@ -17,6 +17,8 @@ on:
 jobs:
   build_flatpak:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,13 +55,25 @@ jobs:
           
           ls -lh flatpak-build/manifest.yml
 
-      - name: Build Flatpak with official action
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          bundle: X2GoClient-${{ github.event.inputs.version }}.flatpak
-          manifest-path: flatpak-build/manifest.yml
-          cache: true
-          cache-key: x2goclient-${{ github.runner.os }}
+      - name: Build Flatpak
+        run: |
+          mkdir -p repo build
+          flatpak-builder \
+            --repo=repo \
+            --disable-rofiles-fuse \
+            --install-deps-from=flathub \
+            --force-clean \
+            --default-branch=master \
+            --arch=x86_64 \
+            --ccache \
+            build \
+            flatpak-build/manifest.yml
+          
+          # Create the bundle
+          flatpak build-bundle \
+            repo \
+            X2GoClient-${{ github.event.inputs.version }}.flatpak \
+            net.x2go.client
 
       - name: Create Release
         id: create_release
@@ -113,7 +127,7 @@ jobs:
             });
           
             // Upload the Flatpak bundle file
-            const bundlePath = '${{ github.workspace }}/build/X2GoClient-${{ github.event.inputs.version }}.flatpak';
+            const bundlePath = '${{ github.workspace }}/X2GoClient-${{ github.event.inputs.version }}.flatpak';
             
             if (!fs.existsSync(bundlePath)) {
               console.warn('Flatpak bundle not found at:', bundlePath);
