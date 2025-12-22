@@ -53,25 +53,31 @@ jobs:
           
           ls -lh flatpak-build/manifest.yml
 
-      - name: Build Flatpak
-        run: |
-          mkdir -p repo build
-          flatpak-builder \
-            --repo=repo \
-            --disable-rofiles-fuse \
-            --install-deps-from=flathub \
-            --force-clean \
-            --default-branch=master \
-            --arch=x86_64 \
-            --ccache \
-            build \
-            flatpak-build/manifest.yml
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: X2GoClient-${{ github.event.inputs.version }}.flatpak
+          manifest-path: flatpak-build/manifest.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+
+      # - name: Build Flatpak
+      #   run: |
+      #     mkdir -p repo build
+      #     flatpak-builder \
+      #       --repo=repo \
+      #       --disable-rofiles-fuse \
+      #       --install-deps-from=flathub \
+      #       --force-clean \
+      #       --default-branch=master \
+      #       --arch=x86_64 \
+      #       --ccache \
+      #       build \
+      #       flatpak-build/manifest.yml
           
-          # Create the bundle
-          flatpak build-bundle \
-            repo \
-            X2GoClient-${{ github.event.inputs.version }}.flatpak \
-            net.x2go.client
+      #     # Create the bundle
+      #     flatpak build-bundle \
+      #       repo \
+      #       X2GoClient-${{ github.event.inputs.version }}.flatpak \
+      #       net.x2go.client
 
       - name: Create Release
         id: create_release
