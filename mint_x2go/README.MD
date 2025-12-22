@@ -14,7 +14,7 @@ Caveats / important notes
 Build
 
 ```bash
-docker build -t gnome-x2go:latest ./ubuntu_desktop_vnc/gnome_x2go
+docker build -t brokenjade/mint_x2go:latest ./ubuntu_desktop_vnc/gnome_x2go
 ```
 
 Run (recommended for testing)
