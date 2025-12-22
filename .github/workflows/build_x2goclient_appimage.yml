@@ -67,9 +67,10 @@ jobs:
           
           wget -c "$RECIPE" -O X2GoClient.yml
           
-          # Run pkg2appimage directly with the recipe
+          # Run pkg2appimage with host library paths to avoid bundled library conflicts
+          # This prevents symbol lookup errors from libselinux and glib
           echo "Running pkg2appimage to build X2GoClient AppImage..."
-          ./pkg2appimage.AppImage X2GoClient.yml || true
+          APPIMAGE_EXTRACT_AND_RUN=1 ./pkg2appimage.AppImage X2GoClient.yml || true
           
           # Copy the built AppImage from out/ directory to artifacts
           if [ -d "out" ]; then
