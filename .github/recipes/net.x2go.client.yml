@@ -1,0 +1,70 @@
+app-id: net.x2go.client
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: x2goclient
+
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=x11
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=home
+  - --filesystem=/tmp
+  - --filesystem=xdg-run/gnupg:ro
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.impl.portal.Notification
+
+modules:
+  - name: openssh
+    config-opts:
+      - --prefix=/app
+      - --with-default-path=/app/bin:/usr/bin
+    sources:
+      - type: archive
+        url: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.6p1.tar.gz
+        sha256: a1cd20562194b26d6464e56c982fc4fe21706a67d413f12200e573bc0b0a37cf
+
+  - name: x2goclient
+    buildsystem: qmake
+    build-options:
+      env:
+        PKG_CONFIG_PATH: /app/lib/pkgconfig
+        LDFLAGS: -L/app/lib
+        CPPFLAGS: -I/app/include
+    config-opts:
+      - PREFIX=/app
+    sources:
+      - type: archive
+        url: https://code.x2go.org/releases/source/x2goclient/x2goclient-4.1.2.3.tar.gz
+        sha256: ab8bb3c78d31625c749e42f15f810fe3d242927a15298308c13dea3b915aca3c
+    post-install:
+      - install -Dm755 x2goclient /app/bin/x2goclient
+      - |
+        if [ -f x2goclient.desktop ]; then
+          install -Dm644 x2goclient.desktop /app/share/applications/net.x2go.client.desktop
+        fi
+      - |
+        for icon in x2goclient.png x2goclient-*.png; do
+          if [ -f "$icon" ]; then
+            install -Dm644 "$icon" "/app/share/icons/hicolor/$(basename $icon .png | grep -oE '[0-9]+' | tail -1)x$(basename $icon .png | grep -oE '[0-9]+' | tail -1)/apps/net.x2go.client.png"
+          fi
+        done
+      - |
+        if [ ! -f /app/share/applications/net.x2go.client.desktop ]; then
+          cat > /app/share/applications/net.x2go.client.desktop << 'EOF'
+        [Desktop Entry]
+        Version=1.0
+        Type=Application
+        Name=X2Go Client
+        Comment=Remote desktop client for X2Go
+        Icon=net.x2go.client
+        Exec=x2goclient
+        Terminal=false
+        Categories=Network;RemoteAccess;
+        EOF
+        fi

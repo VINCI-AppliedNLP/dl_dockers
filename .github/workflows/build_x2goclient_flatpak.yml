@@ -1,0 +1,135 @@
+name: build_x2goclient_flatpak
+run-name: Build X2GoClient Flatpak ${{ github.event.inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag for the release'  
+        type: string   
+        required: false
+        default: 'latest'
+      manifest_url:
+        description: 'URL to the Flatpak manifest (default: local recipe in this repo)'  
+        type: string   
+        required: false
+        default: '.github/recipes/net.x2go.client.yml'
+
+jobs:
+  build_flatpak:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine release name
+        id: tag
+        shell: bash
+        run: |
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+          echo "name=X2GoClient-Flatpak-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+          echo "X2GoClient-Flatpak-${{ github.event.inputs.version }}-b${BUILD_NUMBER}-${SHORT_HASH}"
+
+      - name: Download Flatpak manifest
+        run: |
+          MANIFEST_PATH="${{ github.event.inputs.manifest_url }}"
+          echo "Using Flatpak manifest from: $MANIFEST_PATH"
+          
+          # Check if it's a URL or local file
+          if [[ "$MANIFEST_PATH" == http* ]]; then
+            mkdir -p flatpak-build
+            cd flatpak-build
+            wget -c "$MANIFEST_PATH" -O manifest.yml
+          else
+            # It's a local file path
+            mkdir -p flatpak-build
+            cp "$MANIFEST_PATH" flatpak-build/manifest.yml
+          fi
+          
+          # Extract the app ID from the manifest
+          APP_ID=$(grep "^app-id:" flatpak-build/manifest.yml | awk '{print $2}')
+          echo "APP_ID=$APP_ID" >> $GITHUB_ENV
+          echo "Application ID: $APP_ID"
+          
+          ls -lh flatpak-build/manifest.yml
+
+      - name: Build Flatpak with official action
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: X2GoClient-${{ github.event.inputs.version }}.flatpak
+          manifest-path: flatpak-build/manifest.yml
+          cache: true
+          cache-key: x2goclient-${{ github.runner.os }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          release_name: ${{ steps.tag.outputs.name }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Flatpak to Release
+        id: upload_release
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |          
+            const path = require('path');
+            const fs = require('fs');
+            
+            // Retrieve necessary information
+            const release_id = `${{ steps.create_release.outputs.id }}`;
+            const release_url = `${{ steps.create_release.outputs.html_url }}`;
+  
+            let releaseDescription = '# X2GoClient Flatpak Release\n\n';
+            releaseDescription += `Built from: ${{ github.event.inputs.manifest_url }}\n\n`;
+            releaseDescription += `**Build Information:**\n`;
+            releaseDescription += `- Version: ${{ github.event.inputs.version }}\n`;
+            releaseDescription += `- Build Number: ${{ steps.tag.outputs.name }}\n`;
+            releaseDescription += `- Date: ${new Date().toISOString()}\n\n`;
+            releaseDescription += `**Installation:**\n`;
+            releaseDescription += `\`\`\`bash\n`;
+            releaseDescription += `# Install the Flatpak bundle\n`;
+            releaseDescription += `flatpak install --user X2GoClient-*.flatpak\n\n`;
+            releaseDescription += `# Run X2GoClient\n`;
+            releaseDescription += `flatpak run net.x2go.client\n`;
+            releaseDescription += `\`\`\`\n\n`;
+            releaseDescription += `**Prerequisites:**\n`;
+            releaseDescription += `- Flatpak must be installed on your system\n`;
+            releaseDescription += `- For most distributions: \`sudo apt install flatpak\` (Debian/Ubuntu) or equivalent\n\n`;
+            releaseDescription += `**Manifest:**\n`;
+            releaseDescription += `This Flatpak was built using the X2GoClient manifest from the [Flathub project](https://github.com/flathub/net.x2go.client).\n`;
+  
+            // Update the release with the description
+            await github.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id,
+                body: releaseDescription,
+            });
+          
+            // Upload the Flatpak bundle file
+            const bundlePath = '${{ github.workspace }}/build/X2GoClient-${{ github.event.inputs.version }}.flatpak';
+            
+            if (!fs.existsSync(bundlePath)) {
+              console.warn('Flatpak bundle not found at:', bundlePath);
+              return;
+            }
+            
+            console.log('Uploading Flatpak bundle:', bundlePath);
+            try {
+              await github.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release_id,
+                name: 'X2GoClient-${{ github.event.inputs.version }}.flatpak',
+                data: await fs.readFileSync(bundlePath)
+              });
+              console.log('Successfully uploaded Flatpak bundle');
+            } catch (error) {
+              console.error('Failed to upload Flatpak bundle:', error.message);
+            }
