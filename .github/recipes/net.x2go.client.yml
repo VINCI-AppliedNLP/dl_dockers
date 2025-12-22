@@ -49,22 +49,51 @@ modules:
     config-opts:
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_LIBDIR=lib
       - -DWITH_GSSAPI=OFF
       - -DWITH_EXAMPLES=OFF
     sources:
       - type: archive
         url: https://www.libssh.org/files/0.10/libssh-0.10.6.tar.xz
-        sha256: 1861d498f5b6f1741b6abc73e608478491edcf9c9d4b6630eef6e74596de9dc1
+        sha256: 1861d498f5b6f1741b6571b5f1d58e74daff13be8de099d58db7ee2c5035e0bc
+    post-install:
+      # Ensure pkgconfig and libraries are in expected locations
+      - |
+        if [ -d /app/lib64 ] && [ ! -d /app/lib/pkgconfig ]; then
+          mkdir -p /app/lib/pkgconfig
+          if [ -f /app/lib64/pkgconfig/libssh.pc ]; then
+            cp /app/lib64/pkgconfig/libssh.pc /app/lib/pkgconfig/
+          fi
+        fi
+      - |
+        if [ -d /app/lib64 ] && [ ! -f /app/lib/libssh.so ]; then
+          for f in /app/lib64/libssh*; do
+            if [ -f "$f" ]; then
+              ln -sf "$f" /app/lib/$(basename "$f")
+            fi
+          done
+        fi
+      # Debug: List what was installed
+      - ls -la /app/lib/ || true
+      - ls -la /app/lib/pkgconfig/ || true
+      - cat /app/lib/pkgconfig/libssh.pc || true
 
   - name: x2goclient
     buildsystem: qmake
     build-options:
       env:
-        PKG_CONFIG_PATH: /app/lib/pkgconfig
-        LDFLAGS: -L/app/lib
+        PKG_CONFIG_PATH: /app/lib/pkgconfig:/app/lib64/pkgconfig
+        LDFLAGS: -L/app/lib -L/app/lib64
         CPPFLAGS: -I/app/include
+        QMAKE_LIBDIR: /app/lib /app/lib64
+        QMAKE_INCDIR: /app/include
     config-opts:
       - PREFIX=/app
+      - QMAKE_LIBDIR+=/app/lib
+      - QMAKE_LIBDIR+=/app/lib64
+      - QMAKE_INCDIR+=/app/include
+      - LIBS+=-L/app/lib
+      - LIBS+=-L/app/lib64
     sources:
       - type: archive
         url: https://code.x2go.org/releases/source/x2goclient/x2goclient-4.1.2.3.tar.gz
