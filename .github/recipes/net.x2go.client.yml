@@ -36,9 +36,9 @@ modules:
       - --disable-static
       - --enable-shared
     sources:
-      - type: archive
-        url: https://www.openldap.org/software/download/OpenLDAP/openldap-release/openldap-2.6.6.tgz
-        sha256: 082e998cf542984d43634442dbe11da860759e510907152ea579bdc42fe39ea0
+      - type: git
+        url: https://github.com/openldap/openldap.git
+        tag: OPENLDAP_REL_ENG_2_6_6
 
   # CUPS client library
   - name: cups
