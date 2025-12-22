@@ -17,7 +17,7 @@ RUN apt-get update \
 
 # Download and Install NoMachine (Free Version 9.x)
 # Note: NoMachine does not have a stable "latest" redirect URL; verify version at nomachine.com
-RUN curl -fSL "download.nomachine.com" -o /tmp/nomachine.deb \
+RUN curl -fSL "https://download.nomachine.com/download/9.3/Linux/nomachine_9.3.7_1_amd64.deb" -o /tmp/nomachine.deb \
     && dpkg -i /tmp/nomachine.deb \
     && rm /tmp/nomachine.deb
 

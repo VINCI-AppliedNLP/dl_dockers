@@ -23,7 +23,8 @@ mkdir -p /var/run/sshd
 
 # Optional: Set Cinnamon as the default desktop for NoMachine
 # If not set, NoMachine typically detects the installed environment automatically
-sed -i '/DefaultDesktopCommand/c\DefaultDesktopCommand "/usr/bin/gnome-session-cinnamon"' /usr/NX/etc/node.cfg
+# sed -i '/DefaultDesktopCommand/c\DefaultDesktopCommand "/usr/bin/gnome-session-cinnamon"' /usr/NX/etc/node.cfg
+sed -i '/DefaultDesktopCommand/c\DefaultDesktopCommand "/usr/bin/cinnamon-session"' /usr/NX/etc/node.cfg
 
 # Start systemd (PID 1)
 # Using exec replaces this process so the container runs systemd as the primary init
