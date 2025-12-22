@@ -67,10 +67,25 @@ jobs:
           
           wget -c "$RECIPE" -O X2GoClient.yml
           
-          # Run pkg2appimage with host library paths to avoid bundled library conflicts
-          # This prevents symbol lookup errors from libselinux and glib
+          # Extract the AppImage to avoid library conflicts
+          echo "Extracting pkg2appimage AppImage..."
+          ./pkg2appimage.AppImage --appimage-extract
+          
+          # Create a wrapper that prevents glib-compile-schemas from running
+          # This avoids symbol lookup errors from incompatible bundled libraries
+          mkdir -p squashfs-root/usr/local/bin
+          cat > squashfs-root/usr/local/bin/glib-compile-schemas << 'EOF'
+          #!/bin/sh
+          echo "Skipping glib-compile-schemas (bundled library incompatibility)"
+          exit 0
+          EOF
+          chmod +x squashfs-root/usr/local/bin/glib-compile-schemas
+          
+          # Run pkg2appimage with the wrapper in PATH
           echo "Running pkg2appimage to build X2GoClient AppImage..."
-          APPIMAGE_EXTRACT_AND_RUN=1 ./pkg2appimage.AppImage X2GoClient.yml || true
+          PATH=${{ github.workspace }}/build/squashfs-root/usr/local/bin:$PATH \
+            APPIMAGE_EXTRACT_AND_RUN=1 \
+            ./pkg2appimage.AppImage X2GoClient.yml || true
           
           # Copy the built AppImage from out/ directory to artifacts
           if [ -d "out" ]; then
