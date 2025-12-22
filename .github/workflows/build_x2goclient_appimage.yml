@@ -37,60 +37,40 @@ jobs:
             wget \
             fuse \
             libfuse2 \
-            git \
-            python3 \
-            python3-pip \
             appstream
 
-      - name: Clone pkg2appimage repository
+      - name: Download pkg2appimage AppImage
         run: |
           mkdir -p build
           cd build
-          git clone https://github.com/AppImageCommunity/pkg2appimage.git
-          cd pkg2appimage
-          git log --oneline -1
+          
+          echo "Downloading pkg2appimage AppImage..."
+          wget -c $(wget -q https://api.github.com/repos/AppImageCommunity/pkg2appimage/releases -O - | grep "pkg2appimage-.*-x86_64.AppImage" | grep browser_download_url | head -n 1 | cut -d '"' -f 4)
+          
+          chmod +x ./pkg2appimage-*.AppImage
+          
+          echo "pkg2appimage AppImage downloaded and made executable"
+          ls -lh pkg2appimage-*.AppImage
 
-      - name: Build AppImage
+      - name: Build X2GoClient AppImage
         run: |
-          cd build/pkg2appimage
-          
-          # Make the main script executable
-          chmod +x ./pkg2appimage
-          
-          # Download the recipe if custom URL is provided
-          RECIPE="${{ github.event.inputs.recipe_url }}"
-          
-          # Extract recipe name from URL
-          RECIPE_NAME=$(basename "$RECIPE" .yml)
-          
-          echo "Building X2GoClient AppImage from recipe: $RECIPE"
-          
-          # Create temporary directory for build
-          mkdir -p /tmp/appimage_build
-          cd /tmp/appimage_build
+          mkdir -p ${{ github.workspace }}/artifacts
+          cd build
           
           # Download the recipe
-          wget "$RECIPE" -O recipe.yml
+          RECIPE="${{ github.event.inputs.recipe_url }}"
+          echo "Building X2GoClient AppImage from recipe: $RECIPE"
+          
+          wget -c "$RECIPE" -O X2GoClient.yml
           
           # Run pkg2appimage with the recipe
-          bash "${{ github.workspace }}/build/pkg2appimage/pkg2appimage" recipe.yml || true
-          
-          # List generated AppImages
-          ls -la *.AppImage* 2>/dev/null || echo "No AppImage found in current directory"
+          ./pkg2appimage-*.AppImage X2GoClient.yml || true
           
           # Find and copy AppImage to artifacts
-          mkdir -p ${{ github.workspace }}/artifacts
-          find . -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \;
+          find . -maxdepth 1 -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \;
           
-          # Also check in standard locations
-          if [ -d "./appdir" ]; then
-            find ./appdir -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \; 2>/dev/null || true
-          fi
-
-      - name: List generated artifacts
-        run: |
-          echo "Artifacts generated:"
-          ls -lh artifacts/ || echo "No artifacts found"
+          echo "Build complete. Generated files:"
+          ls -lh ${{ github.workspace }}/artifacts/
 
       - name: Create Release
         id: create_release
