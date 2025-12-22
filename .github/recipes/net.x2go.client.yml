@@ -26,8 +26,9 @@ modules:
       - --with-default-path=/app/bin:/usr/bin
     sources:
       - type: archive
-        url: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.6p1.tar.gz
-        sha256: a1cd20562194b26d6464e56c982fc4fe21706a67d413f12200e573bc0b0a37cf
+        url: https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-10.0p1.tar.gz
+        x-checker-data:
+          type: skipping
 
   - name: x2goclient
     buildsystem: qmake
