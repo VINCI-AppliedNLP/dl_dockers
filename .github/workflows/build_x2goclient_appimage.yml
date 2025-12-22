@@ -37,7 +37,9 @@ jobs:
             wget \
             fuse \
             libfuse2 \
-            appstream
+            imagemagick \
+            appstream \
+            desktop-file-utils
 
       - name: Download pkg2appimage AppImage
         run: |
@@ -47,10 +49,12 @@ jobs:
           echo "Downloading pkg2appimage AppImage..."
           wget -c $(wget -q https://api.github.com/repos/AppImageCommunity/pkg2appimage/releases -O - | grep "pkg2appimage-.*-x86_64.AppImage" | grep browser_download_url | head -n 1 | cut -d '"' -f 4)
           
-          chmod +x ./pkg2appimage-*.AppImage
+          # Rename to avoid filename issues
+          mv pkg2appimage-*-x86_64.AppImage pkg2appimage.AppImage
+          chmod +x ./pkg2appimage.AppImage
           
           echo "pkg2appimage AppImage downloaded and made executable"
-          ls -lh pkg2appimage-*.AppImage
+          ls -lh pkg2appimage.AppImage
 
       - name: Build X2GoClient AppImage
         run: |
@@ -63,8 +67,22 @@ jobs:
           
           wget -c "$RECIPE" -O X2GoClient.yml
           
-          # Run pkg2appimage with the recipe
-          ./pkg2appimage-*.AppImage X2GoClient.yml || true
+          # Extract the AppImage to avoid bundled GLib/libselinux conflicts
+          echo "Extracting pkg2appimage AppImage..."
+          ./pkg2appimage.AppImage --appimage-extract
+          
+          # Create a host-safe AppRun that doesn't export bundled libraries
+          # This avoids the glib-compile-schemas symbol lookup errors
+          echo "Creating host-safe AppRun wrapper..."
+          sed -e 's/^export PATH=.*/# export PATH suppressed to use host binaries/' \
+              -e 's/^export LD_LIBRARY_PATH=.*/# export LD_LIBRARY_PATH suppressed to avoid bundled libs/' \
+              -e 's/^export XDG_DATA_DIRS=.*/# export XDG_DATA_DIRS suppressed/' \
+              squashfs-root/AppRun > squashfs-root/AppRun-host
+          chmod +x squashfs-root/AppRun-host
+          
+          # Run pkg2appimage with the recipe using the host-safe AppRun
+          echo "Running pkg2appimage to build X2GoClient AppImage..."
+          bash squashfs-root/AppRun-host X2GoClient.yml || true
           
           # Find and copy AppImage to artifacts
           find . -maxdepth 1 -name "*.AppImage*" -type f -exec cp {} ${{ github.workspace }}/artifacts/ \;
