@@ -25,15 +25,9 @@ finish-args:
   - --talk-name=org.freedesktop.Flatpak
 
 modules:
-  # Use shared-modules for openssh instead of building from source
-  # Or use a simple buildsystem that doesn't require sandbox
+  # Create wrapper scripts for host ssh binaries
   - name: openssh
     buildsystem: simple
-    build-options:
-      # Disable sandbox for this module - required for GitHub Actions
-      # which doesn't have unprivileged user namespaces enabled
-      build-args:
-        - --disable-rofiles-fuse
     build-commands:
       # Create symlinks to host ssh binaries
       - mkdir -p /app/bin
