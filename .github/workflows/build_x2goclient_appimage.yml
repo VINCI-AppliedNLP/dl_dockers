@@ -44,11 +44,22 @@ jobs:
       - name: Clone and build x2goclient
         run: |
           git clone git://code.x2go.org/x2goclient.git
-
           cd x2goclient
-          qmake x2goclient.pro CONFIG+=release PREFIX=/usr
+          # Add flags to suppress deprecated Qt API warnings that cause build failures
+          qmake x2goclient.pro CONFIG+=release PREFIX=/usr \
+            QMAKE_CXXFLAGS+="-Wno-deprecated-declarations"
           make -j$(nproc)
-          make install INSTALL_ROOT=../AppDir
+          
+          # Manual installation since make install may not work correctly
+          mkdir -p ../AppDir/usr/bin
+          cp x2goclient ../AppDir/usr/bin/
+          
+          # Copy man pages if they exist
+          mkdir -p ../AppDir/usr/share/man/man1
+          cp man/x2goclient.1 ../AppDir/usr/share/man/man1/ 2>/dev/null || true
+          
+          echo "Installed x2goclient to AppDir:"
+          ls -la ../AppDir/usr/bin/
           
       - name: Create desktop file
         run: |
