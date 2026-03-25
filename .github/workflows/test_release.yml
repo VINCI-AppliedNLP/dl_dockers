@@ -1,0 +1,112 @@
+name: test_release
+run-name: Build ${{ github.event.inputs.build_folder }}
+on:
+  workflow_dispatch:
+    inputs:
+      build_folder:
+        description: "From which folder's environment.yml, the conda environment will be built"
+        type: string   
+        required: false
+        default: 'win_llamacppgpu'
+      cuda:
+        description: "cuda version"
+        type: string   
+        required: false
+        default: '12.6.0'
+
+permissions:
+  contents: write
+        
+jobs:
+  create_env:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Determine tag name
+      id: tag
+      shell: bash
+      run: |
+        BUILD_NUMBER="$(git rev-list --count HEAD)"
+        SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+        if [[ "${{ env.BRANCH_NAME }}" == "master" ]]; then
+        echo "name=${{ github.event.inputs.cuda }}-b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+        else
+        SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
+        echo "name=${{ github.event.inputs.build_folder }}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.name }}
+        release_name: ${{ steps.tag.outputs.name }}
+        draft: false
+        prerelease: false
+
+    - name: Upload release
+      id: upload_release
+      uses: actions/github-script@v3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Retrieve necessary information
+            const release_id = `${{ steps.create_release.outputs.id }}`;
+            const release_url = `${{ steps.create_release.outputs.html_url }}`;
+            const buildFolder = `${{ github.event.inputs.build_folder }}`;
+            const descriptionFilePath = `${buildFolder}/README.MD`;
+
+            let releaseDescription = '';
+
+            // Check for README file and load its content
+            if (fs.existsSync(descriptionFilePath)) {
+                releaseDescription = fs.readFileSync(descriptionFilePath, 'utf8');
+                console.log("Successfully read release description from 'README.MD'");
+            } else {
+                console.warn("README.MD not found in the specified build folder. Proceeding without a detailed description.");
+            }
+
+
+            // Construct the environment.yml GitHub file URL manually
+            const branchOrCommitSha = context.sha; // Current commit SHA
+            const repoOwner = context.repo.owner;
+            const repoName = context.repo.repo;
+            const filePath = `${buildFolder}/environment.yml`;
+            const fileUrl = `https://github.com/${repoOwner}/${repoName}/blob/${branchOrCommitSha}/${filePath}`;
+            console.log(`Constructed file URL: ${fileUrl}`);
+
+            // Append the file URL to the release description
+            releaseDescription += `\n\nView the corresponding [environment.yml](${fileUrl}) file used for this release.`;
+
+
+            // Update the release with the description
+            await github.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id,
+                body: releaseDescription,
+            });
+
+            // Upload assets from the specified build folder
+            const files = fs.readdirSync(buildFolder);
+            for (const file of files) {
+                if (path.extname(file).toLowerCase() === '.yml') {
+                console.log(`Uploading file: ${file}`);
+                await github.repos.uploadReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    release_id,
+                    name: file,
+                    data: fs.readFileSync(path.join(buildFolder, file)),
+                });
+                }
+            }
+

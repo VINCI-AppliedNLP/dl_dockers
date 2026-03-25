@@ -1,0 +1,12 @@
+name: win_llamacppgpu
+
+# The conda channels to lookup the dependencies
+channels:
+  - conda-forge 
+
+# The packages to install to the environment
+dependencies:
+  - python=3.10
+  - nvidia/label/cuda-12.4.0::cuda
+  - nvidia/label/cuda-12.4.0::cuda-nvcc
+  - pip

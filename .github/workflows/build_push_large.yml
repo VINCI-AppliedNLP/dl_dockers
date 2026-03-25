@@ -1,6 +1,6 @@
 name: build_push_large
 # this workflow added maximize-build-space action to get larger disc to build.
-run-name: B&DL ${{ github.event.inputs.hub_username }}/${{ github.event.inputs.build_folder }}:${{ github.event.inputs.tag }}  
+run-name: B&DL ${{ github.event.inputs.hub_username }}/${{ github.event.inputs.build_folder }}:${{ github.event.inputs.tags }}  
 on:
   workflow_dispatch:
     inputs:
@@ -8,7 +8,7 @@ on:
         description: 'From which folder, the Dockerfiles will be built'  
         type: string   
         required: false
-        default: 'cosmos_base'
+        default: 'cosmos_llamacpp'
       tags:
         description: 'Comma-separated list of image tags'
         type: string
